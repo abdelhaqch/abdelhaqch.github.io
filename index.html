@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RedCell Console — Findings Tracker</title>
+<style>
+  :root{
+    --bg:#0a0d13; --bg2:#0d1119; --panel:#111624; --panel2:#141a2a;
+    --border:#1d2636; --border2:#28344a;
+    --txt:#e7ebf3; --muted:#8a94a9; --faint:#5c6577;
+    --accent:#5b8cff; --accent2:#3a6df0;
+    --crit:#e5484d; --high:#f76b15; --med:#e0a416; --low:#3b82f6; --info:#6b7280;
+    --ok:#2fb67c; --shadow:0 8px 30px rgba(0,0,0,.35);
+    --radius:14px; --radius-sm:9px;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  a{color:var(--accent);text-decoration:none}
+  button{font-family:inherit;cursor:pointer}
+
+  /* ---------- top bar ---------- */
+  header{display:flex;align-items:center;gap:18px;padding:14px 22px;background:linear-gradient(180deg,#0e1320,#0b0f18);
+    border-bottom:1px solid var(--border);position:sticky;top:0;z-index:40}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:.3px}
+  .logo{width:30px;height:30px;border-radius:8px;background:
+    radial-gradient(circle at 30% 30%,#ff5b6a,#b91c2b);display:grid;place-items:center;
+    box-shadow:0 0 0 1px rgba(255,91,106,.35),0 6px 18px rgba(185,28,43,.4);position:relative}
+  .logo::after{content:"";width:11px;height:11px;border-radius:50%;background:#0a0d13;
+    box-shadow:inset 0 0 0 3px #ff8a94}
+  .brand small{display:block;font-weight:500;color:var(--muted);font-size:11px;letter-spacing:.6px;text-transform:uppercase}
+  .target-chip{display:flex;flex-direction:column;padding:4px 14px;border-left:1px solid var(--border2);margin-left:4px}
+  .target-chip b{font-size:13px}
+  .target-chip span{color:var(--faint);font-size:11px;font-family:var(--mono)}
+  .spacer{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:var(--radius-sm);
+    border:1px solid var(--border2);background:var(--panel2);color:var(--txt);font-size:13px;font-weight:500;
+    transition:.15s}
+  .btn:hover{border-color:var(--accent);background:#17203a}
+  .btn.primary{background:var(--accent2);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:var(--accent)}
+  .btn svg{width:15px;height:15px}
+
+  /* ---------- layout ---------- */
+  .wrap{padding:20px 22px 60px;max-width:1500px;margin:0 auto}
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}
+  .kpi{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--border);
+    border-radius:var(--radius);padding:14px 16px;position:relative;overflow:hidden}
+  .kpi .v{font-size:26px;font-weight:700;letter-spacing:-.5px;line-height:1.1}
+  .kpi .l{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.7px;margin-top:3px}
+  .kpi .sub{font-size:11px;color:var(--faint);margin-top:4px}
+  .kpi .bar{position:absolute;left:0;bottom:0;height:3px;background:var(--accent)}
+  .kpi.crit .v{color:var(--crit)} .kpi.crit .bar{background:var(--crit)}
+  .kpi.ok .v{color:var(--ok)} .kpi.ok .bar{background:var(--ok)}
+  .kpi.warn .v{color:var(--med)} .kpi.warn .bar{background:var(--med)}
+
+  .charts{display:grid;grid-template-columns:260px 1fr 1fr;gap:12px;margin-bottom:16px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--border);
+    border-radius:var(--radius);padding:16px}
+  .card h3{margin:0 0 14px;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600}
+  .donut-wrap{display:flex;align-items:center;gap:16px}
+  .donut{width:120px;height:120px;border-radius:50%;position:relative;flex:none}
+  .donut::after{content:"";position:absolute;inset:18px;background:var(--bg2);border-radius:50%;
+    box-shadow:inset 0 0 0 1px var(--border)}
+  .donut .center{position:absolute;inset:0;display:grid;place-items:center;z-index:2;text-align:center}
+  .donut .center b{font-size:22px;font-weight:700} .donut .center span{font-size:10px;color:var(--muted);display:block}
+  .legend{display:flex;flex-direction:column;gap:7px;font-size:12px;flex:1}
+  .legend .row{display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 4px;border-radius:5px}
+  .legend .row:hover{background:#171d2d}
+  .legend .dot{width:10px;height:10px;border-radius:3px;flex:none}
+  .legend .row .n{margin-left:auto;font-family:var(--mono);color:var(--muted)}
+
+  .hbars{display:flex;flex-direction:column;gap:9px}
+  .hbar{display:grid;grid-template-columns:120px 1fr 38px;align-items:center;gap:10px;font-size:12px}
+  .hbar .lab{color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono);font-size:11px}
+  .hbar .track{height:9px;background:#0c1018;border-radius:5px;overflow:hidden;border:1px solid var(--border)}
+  .hbar .fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  .hbar .n{text-align:right;font-family:var(--mono);color:var(--muted)}
+
+  /* ---------- main grid ---------- */
+  .main{display:grid;grid-template-columns:230px 1fr;gap:14px}
+  .filters .card{position:sticky;top:78px}
+  .fgroup{margin-bottom:18px}
+  .fgroup h4{margin:0 0 9px;font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--faint);font-weight:600}
+  .check{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;cursor:pointer;font-size:13px;user-select:none}
+  .check:hover{background:#161d2d}
+  .check input{accent-color:var(--accent);width:14px;height:14px}
+  .check .count{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .check .sw{width:9px;height:9px;border-radius:3px}
+  .search{width:100%;padding:9px 11px;background:#0c1018;border:1px solid var(--border2);border-radius:8px;
+    color:var(--txt);font-size:13px;margin-bottom:6px}
+  .search::placeholder{color:var(--faint)}
+  .reset{width:100%;margin-top:4px;font-size:12px;color:var(--muted);background:none;border:1px dashed var(--border2);
+    padding:7px;border-radius:7px}
+  .reset:hover{color:var(--txt);border-color:var(--accent)}
+
+  /* ---------- findings list ---------- */
+  .listhead{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .listhead .count{font-size:13px;color:var(--muted)}
+  .listhead .count b{color:var(--txt)}
+  .sortsel{margin-left:auto;background:#0c1018;border:1px solid var(--border2);color:var(--txt);
+    padding:7px 10px;border-radius:8px;font-size:12px}
+  .flist{display:flex;flex-direction:column;gap:7px}
+  .fitem{display:grid;grid-template-columns:76px 1fr auto;gap:12px;align-items:center;
+    background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--border);
+    border-left-width:3px;border-radius:10px;padding:11px 14px;cursor:pointer;transition:.12s}
+  .fitem:hover{border-color:var(--border2);background:var(--panel2);transform:translateY(-1px)}
+  .fitem .sev{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:center;
+    padding:4px 0;border-radius:5px}
+  .fitem .mid .t{font-weight:600;font-size:13.5px;margin-bottom:3px}
+  .fitem .mid .meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:11px;color:var(--muted);align-items:center}
+  .fitem .mid .meta .loc{font-family:var(--mono);color:var(--faint)}
+  .tag{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:5px;background:#0e1626;
+    border:1px solid var(--border2);font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+  .tag.corr{color:#8fe3b8;border-color:#1f4a37;background:#0d1d16}
+  .fitem .right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .statuspill{font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap}
+  .conf{font-size:10px;color:var(--faint);font-family:var(--mono)}
+  .empty{padding:50px;text-align:center;color:var(--muted)}
+  .loadmore{margin:14px auto 0;display:block}
+
+  /* status colors */
+  .st-open{background:#2a1416;color:#ff8a8a;border:1px solid #512225}
+  .st-in_progress{background:#20242e;color:#cdd6e6;border:1px solid #39414f}
+  .st-confirmed{background:#2a1708;color:#ffb27a;border:1px solid #5a3414}
+  .st-fixed{background:#0e2419;color:#58d99b;border:1px solid #1d4a34}
+  .st-false_positive{background:#1a1f2b;color:#9aa6bd;border:1px solid #333c4e}
+  .st-accepted_risk{background:#201a2e;color:#c6a8f0;border:1px solid #3d2f59}
+
+  /* ---------- detail drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(4,6,10,.6);backdrop-filter:blur(2px);z-index:50;opacity:0;
+    pointer-events:none;transition:.2s}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:560px;max-width:94vw;background:var(--bg2);
+    border-left:1px solid var(--border2);z-index:60;transform:translateX(100%);transition:.25s cubic-bezier(.4,0,.2,1);
+    display:flex;flex-direction:column;box-shadow:var(--shadow)}
+  .drawer.show{transform:translateX(0)}
+  .dhead{padding:18px 22px;border-bottom:1px solid var(--border)}
+  .dhead .sevline{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .dhead h2{margin:0;font-size:18px;line-height:1.3}
+  .dclose{position:absolute;top:16px;right:18px;background:none;border:none;color:var(--muted);font-size:22px}
+  .dclose:hover{color:var(--txt)}
+  .dbody{padding:18px 22px;overflow-y:auto;flex:1}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;font-size:13px;margin-bottom:18px}
+  .kv .k{color:var(--muted)}
+  .kv .v{color:var(--txt)}
+  .kv .v.mono{font-family:var(--mono);font-size:12px}
+  .section-t{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--faint);font-weight:600;
+    margin:16px 0 8px}
+  pre.code{background:#0a0e16;border:1px solid var(--border);border-radius:9px;padding:12px;overflow-x:auto;
+    font-family:var(--mono);font-size:12px;color:#c6d0e0;white-space:pre-wrap;word-break:break-word}
+  .flow{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;background:#0d1626;
+    border:1px solid #1d3356;border-radius:9px;padding:11px 13px;color:#9fc0ff}
+  .flow .arrow{color:var(--accent)}
+  .rec{background:#0e1d16;border:1px solid #1d4a34;border-radius:9px;padding:12px;font-size:13px;color:#b9e8ce}
+
+  /* triage controls */
+  .triage{background:var(--panel);border:1px solid var(--border2);border-radius:11px;padding:15px;margin-top:6px}
+  .triage h4{margin:0 0 12px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .statusgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:13px}
+  .stbtn{padding:8px 6px;border-radius:8px;border:1px solid var(--border2);background:#0f1420;color:var(--muted);
+    font-size:11.5px;font-weight:600;transition:.12s;text-align:center}
+  .stbtn:hover{border-color:var(--accent);color:var(--txt)}
+  .stbtn.active{color:#fff}
+  .lbl{font-size:11px;color:var(--muted);margin:10px 0 5px;display:block;text-transform:uppercase;letter-spacing:.5px}
+  .triage input[type=text],.triage textarea{width:100%;background:#0c1018;border:1px solid var(--border2);
+    border-radius:8px;color:var(--txt);padding:9px 11px;font-family:inherit;font-size:13px;resize:vertical}
+  .triage textarea{min-height:70px}
+  .saved{font-size:11px;color:var(--ok);margin-top:8px;opacity:0;transition:.2s}
+  .saved.show{opacity:1}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel2);
+    border:1px solid var(--border2);padding:11px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;
+    transition:.25s;z-index:80;box-shadow:var(--shadow)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:1200px){.kpis{grid-template-columns:repeat(3,1fr)}.charts{grid-template-columns:1fr}
+    .main{grid-template-columns:1fr}.filters .card{position:static}}
+  @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr)}.fitem{grid-template-columns:60px 1fr}
+    .fitem .right{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="logo"></div><div>RedCell<small>Security Console</small></div></div>
+  <div class="target-chip"><b id="tgtName">—</b><span id="tgtMeta">—</span></div>
+  <div class="spacer"></div>
+  <input type="file" id="importFile" accept="application/json,.json" hidden>
+  <button class="btn" id="importBtn" title="Load a RedCell findings.json">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+    Import run</button>
+  <button class="btn primary" id="exportBtn" title="Download findings + your triage state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 12l-4-4m4 4l4-4M4 7V5a2 2 0 012-2h12a2 2 0 012 2v2"/></svg>
+    Export</button>
+</header>
+
+<div class="wrap">
+  <div class="kpis" id="kpis"></div>
+
+  <div class="charts">
+    <div class="card"><h3>Severity</h3><div class="donut-wrap">
+      <div class="donut" id="donut"><div class="center"><b id="donutTotal">0</b><span>findings</span></div></div>
+      <div class="legend" id="sevLegend"></div>
+    </div></div>
+    <div class="card"><h3>Top weakness types (CWE)</h3><div class="hbars" id="cweBars"></div></div>
+    <div class="card"><h3>MITRE ATT&CK techniques enabled</h3><div class="hbars" id="attackBars"></div></div>
+  </div>
+
+  <div class="main">
+    <div class="filters">
+      <div class="card">
+        <input class="search" id="search" placeholder="Search title, file, CWE…">
+        <div class="fgroup"><h4>Severity</h4><div id="fSev"></div></div>
+        <div class="fgroup"><h4>Triage status</h4><div id="fStatus"></div></div>
+        <div class="fgroup"><h4>Detected by</h4><div id="fSource"></div></div>
+        <div class="fgroup"><h4>Validation</h4><div id="fVal"></div></div>
+        <button class="reset" id="resetBtn">Reset all filters</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="listhead">
+        <div class="count"><b id="shownCount">0</b> of <span id="totalCount">0</span> findings</div>
+        <select class="sortsel" id="sortSel">
+          <option value="risk">Sort: Severity ↓</option>
+          <option value="conf">Sort: Confidence ↓</option>
+          <option value="file">Sort: File</option>
+          <option value="status">Sort: Status</option>
+        </select>
+      </div>
+      <div class="flist" id="flist"></div>
+      <button class="btn loadmore" id="loadMore" hidden>Show more</button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="toast" id="toast"></div>
+
+<script>
+let RAW_DATA = {target:"",generated_at:"",summary:{},findings:[]};
+
+/* ---------------- model ---------------- */
+const SEV = ["critical","high","medium","low","info"];
+const SEV_COLOR = {critical:"#e5484d",high:"#f76b15",medium:"#e0a416",low:"#3b82f6",info:"#6b7280"};
+const SEV_WEIGHT = {critical:10,high:5,medium:2,low:1,info:0};
+const STATUSES = [
+  ["open","Open"],["in_progress","In progress"],["confirmed","Confirmed"],
+  ["fixed","Fixed"],["false_positive","False positive"],["accepted_risk","Accepted risk"]
+];
+const RESOLVED = new Set(["fixed","false_positive","accepted_risk"]);
+const LS_KEY = "redcell_triage_" + (RAW_DATA.target||"default");
+
+let findings = (RAW_DATA.findings||[]).map(f => ({...f}));
+let triage = loadTriage();
+let baselineRisk = 0;
+
+function loadTriage(){ try{return JSON.parse(localStorage.getItem(LS_KEY))||{};}catch(e){return {};} }
+function saveTriage(){ try{localStorage.setItem(LS_KEY,JSON.stringify(triage));}catch(e){} }
+function statusOf(f){ return (triage[f.id]&&triage[f.id].status) || "open"; }
+
+/* ---------------- filter state ---------------- */
+let F = { sev:new Set(SEV), status:new Set(STATUSES.map(s=>s[0])), source:new Set(), val:new Set(), q:"", sort:"risk", limit:60 };
+
+/* ---------------- helpers ---------------- */
+const $ = s => document.querySelector(s);
+const el = (t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+function sourceList(){ const s=new Set(); findings.forEach(f=>(f.source||"").split(",").map(x=>x.trim()).filter(Boolean).forEach(x=>s.add(x))); return [...s].sort(); }
+function primarySource(f){ return (f.source||"").split(",")[0].trim(); }
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),1900); }
+
+/* ---------------- derived counts ---------------- */
+function computeBaseline(){ baselineRisk = findings.reduce((a,f)=>a+SEV_WEIGHT[f.severity],0); }
+function currentRisk(){ return findings.reduce((a,f)=>RESOLVED.has(statusOf(f))?a:a+SEV_WEIGHT[f.severity],0); }
+
+/* ---------------- rendering: KPIs ---------------- */
+function renderKpis(){
+  const total=findings.length;
+  const open=findings.filter(f=>statusOf(f)==="open").length;
+  const resolved=findings.filter(f=>RESOLVED.has(statusOf(f))).length;
+  const chOpen=findings.filter(f=>!RESOLVED.has(statusOf(f))&&(f.severity==="critical"||f.severity==="high")).length;
+  const triaged=total?Math.round((findings.filter(f=>statusOf(f)!=="open").length/total)*100):0;
+  const corrob=findings.filter(f=>(f.corroborated_by||[]).length>0).length;
+  const risk=currentRisk(), reduced=baselineRisk?Math.round((1-risk/baselineRisk)*100):0;
+  const cards=[
+    {v:total,l:"Total findings",sub:`${sourceList().length} detectors`,cls:""},
+    {v:chOpen,l:"Critical + High open",sub:"needs attention",cls:chOpen?"crit":"ok"},
+    {v:open,l:"Untriaged",sub:`${triaged}% triaged`,cls:open?"warn":"ok"},
+    {v:resolved,l:"Resolved",sub:"fixed / FP / accepted",cls:"ok"},
+    {v:risk,l:"Exposure score",sub:`▼ ${reduced}% from baseline ${baselineRisk}`,cls:risk>baselineRisk*0.6?"crit":(risk?"warn":"ok")},
+    {v:corrob,l:"Cross-tool confirmed",sub:"multiple detectors agree",cls:""},
+  ];
+  const wrap=$("#kpis"); wrap.innerHTML="";
+  cards.forEach(c=>{
+    const d=el("div","kpi "+c.cls);
+    d.innerHTML=`<div class="v">${c.v}</div><div class="l">${c.l}</div><div class="sub">${c.sub}</div><div class="bar"></div>`;
+    wrap.appendChild(d);
+  });
+}
+
+/* ---------------- charts ---------------- */
+function renderDonut(){
+  const counts={}; SEV.forEach(s=>counts[s]=0); findings.forEach(f=>counts[f.severity]++);
+  const total=findings.length||1; let acc=0; const segs=[];
+  SEV.forEach(s=>{ if(counts[s]>0){ const frac=counts[s]/total; segs.push(`${SEV_COLOR[s]} ${(acc*100).toFixed(2)}% ${((acc+frac)*100).toFixed(2)}%`); acc+=frac; } });
+  $("#donut").style.background = segs.length?`conic-gradient(${segs.join(",")})`:"#1a2130";
+  $("#donutTotal").textContent=findings.length;
+  const lg=$("#sevLegend"); lg.innerHTML="";
+  SEV.forEach(s=>{ if(counts[s]===0 && !F.sev.has(s)) {} const r=el("div","row");
+    const active=F.sev.has(s);
+    r.style.opacity = active?1:.4;
+    r.innerHTML=`<span class="dot" style="background:${SEV_COLOR[s]}"></span>${s[0].toUpperCase()+s.slice(1)}<span class="n">${counts[s]}</span>`;
+    r.onclick=()=>{ if(F.sev.has(s))F.sev.delete(s); else F.sev.add(s); syncChecks(); render(); };
+    lg.appendChild(r);
+  });
+}
+function renderBars(containerId, pairs, max){
+  const c=$("#"+containerId); c.innerHTML="";
+  const mx=max||Math.max(1,...pairs.map(p=>p[1]));
+  pairs.forEach(([lab,n])=>{
+    const row=el("div","hbar");
+    row.innerHTML=`<div class="lab" title="${esc(lab)}">${esc(lab)}</div>
+      <div class="track"><div class="fill" style="width:${(n/mx*100).toFixed(1)}%"></div></div><div class="n">${n}</div>`;
+    c.appendChild(row);
+  });
+}
+function topCounts(keyFn,n){ const m={}; findings.forEach(f=>{const k=keyFn(f); if(k)m[k]=(m[k]||0)+1;}); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,n); }
+
+/* ---------------- filters UI ---------------- */
+function buildFilterChecks(){
+  // severity
+  $("#fSev").innerHTML=""; SEV.forEach(s=>{
+    const cnt=findings.filter(f=>f.severity===s).length;
+    const c=el("label","check");
+    c.innerHTML=`<input type="checkbox" data-sev="${s}" ${F.sev.has(s)?"checked":""}><span class="sw" style="background:${SEV_COLOR[s]}"></span>${s[0].toUpperCase()+s.slice(1)}<span class="count">${cnt}</span>`;
+    c.querySelector("input").onchange=e=>{ e.target.checked?F.sev.add(s):F.sev.delete(s); render(); };
+    $("#fSev").appendChild(c);
+  });
+  // status
+  $("#fStatus").innerHTML=""; STATUSES.forEach(([k,lbl])=>{
+    const cnt=findings.filter(f=>statusOf(f)===k).length;
+    const c=el("label","check");
+    c.innerHTML=`<input type="checkbox" data-st="${k}" ${F.status.has(k)?"checked":""}>${lbl}<span class="count">${cnt}</span>`;
+    c.querySelector("input").onchange=e=>{ e.target.checked?F.status.add(k):F.status.delete(k); render(); };
+    $("#fStatus").appendChild(c);
+  });
+  // source
+  if(F.source.size===0) sourceList().forEach(s=>F.source.add(s));
+  $("#fSource").innerHTML=""; sourceList().forEach(s=>{
+    const cnt=findings.filter(f=>(f.source||"").includes(s)).length;
+    const c=el("label","check");
+    c.innerHTML=`<input type="checkbox" ${F.source.has(s)?"checked":""}>${esc(s)}<span class="count">${cnt}</span>`;
+    c.querySelector("input").onchange=e=>{ e.target.checked?F.source.add(s):F.source.delete(s); render(); };
+    $("#fSource").appendChild(c);
+  });
+  // validation
+  const vals=[...new Set(findings.map(f=>f.validation).filter(Boolean))];
+  if(F.val.size===0) vals.forEach(v=>F.val.add(v));
+  $("#fVal").innerHTML=""; vals.forEach(v=>{
+    const cnt=findings.filter(f=>f.validation===v).length;
+    const c=el("label","check");
+    c.innerHTML=`<input type="checkbox" ${F.val.has(v)?"checked":""}>${esc(v.replace(/_/g," "))}<span class="count">${cnt}</span>`;
+    c.querySelector("input").onchange=e=>{ e.target.checked?F.val.add(v):F.val.delete(v); render(); };
+    $("#fVal").appendChild(c);
+  });
+}
+function syncChecks(){ document.querySelectorAll('#fSev input').forEach(i=>i.checked=F.sev.has(i.dataset.sev)); }
+
+/* ---------------- filtering + list ---------------- */
+function filtered(){
+  const q=F.q.toLowerCase();
+  let r=findings.filter(f=>
+    F.sev.has(f.severity) &&
+    F.status.has(statusOf(f)) &&
+    (f.source||"").split(",").map(x=>x.trim()).some(x=>F.source.has(x)) &&
+    (F.val.has(f.validation)) &&
+    (!q || (f.title+" "+(f.file||"")+" "+(f.cwe||"")+" "+(f.owasp||"")).toLowerCase().includes(q))
+  );
+  const sev2=s=>({critical:4,high:3,medium:2,low:1,info:0}[s]);
+  if(F.sort==="risk") r.sort((a,b)=>sev2(b.severity)-sev2(a.severity)||(b.confidence||0)-(a.confidence||0));
+  else if(F.sort==="conf") r.sort((a,b)=>(b.confidence||0)-(a.confidence||0));
+  else if(F.sort==="file") r.sort((a,b)=>(a.file||"").localeCompare(b.file||"")||((a.line||0)-(b.line||0)));
+  else if(F.sort==="status") r.sort((a,b)=>statusOf(a).localeCompare(statusOf(b)));
+  return r;
+}
+function stLabel(k){ return (STATUSES.find(s=>s[0]===k)||[,k])[1]; }
+function renderList(){
+  const all=filtered(); const list=$("#flist"); list.innerHTML="";
+  $("#shownCount").textContent=Math.min(F.limit,all.length);
+  $("#totalCount").textContent=findings.length;
+  if(all.length===0){ list.appendChild(el("div","empty","No findings match the current filters.")); $("#loadMore").hidden=true; return; }
+  all.slice(0,F.limit).forEach(f=>{
+    const st=statusOf(f);
+    const item=el("div","fitem"); item.style.borderLeftColor=SEV_COLOR[f.severity];
+    const corr=(f.corroborated_by||[]).length?`<span class="tag corr">✓ ${f.corroborated_by.length} detectors</span>`:"";
+    const attack=f.mitre_attack?`<span class="tag">${esc(f.mitre_attack.split(" ")[0])}</span>`:"";
+    item.innerHTML=`
+      <div class="sev" style="background:${SEV_COLOR[f.severity]}22;color:${SEV_COLOR[f.severity]}">${f.severity}</div>
+      <div class="mid">
+        <div class="t">${esc(f.title)}</div>
+        <div class="meta">
+          <span class="loc">${esc(f.file||"—")}${f.line?":"+f.line:""}</span>
+          ${f.cwe?`<span class="tag">${esc(f.cwe)}</span>`:""}
+          ${attack}${corr}
+          <span>via ${esc(primarySource(f))}</span>
+        </div>
+      </div>
+      <div class="right">
+        <span class="statuspill st-${st}">${stLabel(st)}</span>
+        <span class="conf">conf ${(f.confidence||0).toFixed(2)}</span>
+      </div>`;
+    item.onclick=()=>openDrawer(f);
+    list.appendChild(item);
+  });
+  $("#loadMore").hidden = all.length<=F.limit;
+}
+
+/* ---------------- detail drawer ---------------- */
+function openDrawer(f){
+  const st=statusOf(f); const t=triage[f.id]||{};
+  const flow = f.evidence && f.evidence.includes("→")
+    ? `<div class="flow">${esc(f.evidence.split("\\n")[0]).replace(/→/g,'<span class="arrow">→</span>')}</div>` : "";
+  const d=$("#drawer");
+  d.innerHTML=`
+    <button class="dclose" id="dclose">×</button>
+    <div class="dhead">
+      <div class="sevline">
+        <span class="statuspill st-${f.severity==='critical'?'open':'confirmed'}" style="background:${SEV_COLOR[f.severity]}22;color:${SEV_COLOR[f.severity]};border:1px solid ${SEV_COLOR[f.severity]}55">${f.severity.toUpperCase()}</span>
+        ${f.cwe?`<span class="tag">${esc(f.cwe)}</span>`:""}
+        ${(f.corroborated_by||[]).length?`<span class="tag corr">✓ confirmed by ${f.corroborated_by.length} detectors</span>`:""}
+      </div>
+      <h2>${esc(f.title)}</h2>
+    </div>
+    <div class="dbody">
+      <div class="kv">
+        <div class="k">Location</div><div class="v mono">${esc(f.file||"—")}${f.line?":"+f.line:""}</div>
+        <div class="k">OWASP</div><div class="v">${esc(f.owasp||"—")}</div>
+        <div class="k">MITRE ATT&CK</div><div class="v">${esc(f.mitre_attack||"—")}</div>
+        <div class="k">Detected by</div><div class="v">${esc(f.source||"—")}</div>
+        <div class="k">Confidence</div><div class="v">${((f.confidence||0)*100).toFixed(0)}%</div>
+        <div class="k">Validation</div><div class="v">${esc((f.validation||"").replace(/_/g," ")||"—")}</div>
+      </div>
+      ${f.description?`<div class="section-t">Description</div><div style="font-size:13.5px">${esc(f.description).replace(/\\n/g,"<br>")}</div>`:""}
+      ${flow?`<div class="section-t">Dataflow</div>${flow}`:""}
+      ${f.evidence?`<div class="section-t">Evidence</div><pre class="code">${esc(f.evidence)}</pre>`:""}
+      ${f.recommendation?`<div class="section-t">Remediation</div><div class="rec">${esc(f.recommendation)}</div>`:""}
+      <div class="triage">
+        <h4>Triage</h4>
+        <div class="statusgrid" id="stgrid"></div>
+        <label class="lbl">Assignee</label>
+        <input type="text" id="assignee" placeholder="unassigned" value="${esc(t.assignee||"")}">
+        <label class="lbl">Notes</label>
+        <textarea id="note" placeholder="Add triage notes, repro steps, decision rationale…">${esc(t.note||"")}</textarea>
+        <div class="saved" id="savedMsg">✓ Saved</div>
+      </div>
+    </div>`;
+  const grid=d.querySelector("#stgrid");
+  STATUSES.forEach(([k,lbl])=>{
+    const b=el("button","stbtn"+(st===k?" active":"")); b.textContent=lbl;
+    if(st===k){ b.style.background=statusColor(k); b.style.borderColor="transparent"; }
+    b.onclick=()=>{ setTriage(f,{status:k}); openDrawer(f); render(); flashSaved(); };
+    grid.appendChild(b);
+  });
+  d.querySelector("#assignee").oninput=e=>setTriage(f,{assignee:e.target.value});
+  d.querySelector("#note").oninput=e=>setTriage(f,{note:e.target.value});
+  d.querySelector("#dclose").onclick=closeDrawer;
+  d.classList.add("show"); $("#scrim").classList.add("show");
+}
+function statusColor(k){ return {open:"#7a2b2e",in_progress:"#3a4254",confirmed:"#8a4a1c",fixed:"#1d7a4d",false_positive:"#444c5e",accepted_risk:"#5a3f86"}[k]; }
+function setTriage(f,patch){ triage[f.id]={...(triage[f.id]||{status:"open"}),...patch,updatedAt:Date.now()}; saveTriage(); }
+function flashSaved(){ const m=$("#savedMsg"); if(m){m.classList.add("show");setTimeout(()=>m.classList.remove("show"),1200);} }
+function closeDrawer(){ $("#drawer").classList.remove("show"); $("#scrim").classList.remove("show"); }
+
+/* ---------------- import / export ---------------- */
+function doExport(){
+  const out={ target:RAW_DATA.target, generated_at:RAW_DATA.generated_at, exported_at:new Date().toISOString(),
+    findings: findings.map(f=>({...f, triage: triage[f.id]||{status:"open"}})) };
+  openCopyModal(JSON.stringify(out,null,2));
+}
+function openCopyModal(json){
+  let m=document.getElementById("copyModal");
+  if(!m){
+    m=document.createElement("div"); m.id="copyModal";
+    m.style.cssText="position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:rgba(4,6,10,.7);backdrop-filter:blur(3px)";
+    m.innerHTML=`<div style="width:min(760px,92vw);max-height:84vh;display:flex;flex-direction:column;background:var(--bg2);
+      border:1px solid var(--border2);border-radius:14px;box-shadow:var(--shadow);overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+        <b style="font-size:15px">Export — findings + triage</b>
+        <span style="color:var(--faint);font-size:12px">${findings.length} findings · copy this JSON or save it as a .json file</span>
+        <span style="flex:1"></span>
+        <button class="btn primary" id="cmCopy">Copy to clipboard</button>
+        <button class="btn" id="cmClose">Close</button>
+      </div>
+      <textarea id="cmText" readonly style="flex:1;min-height:340px;border:0;background:#0a0e16;color:#c6d0e0;
+        font-family:var(--mono);font-size:11.5px;padding:16px;resize:none;outline:none"></textarea>
+    </div>`;
+    document.body.appendChild(m);
+    m.addEventListener("click",e=>{ if(e.target===m) m.style.display="none"; });
+  }
+  m.style.display="grid";
+  const ta=m.querySelector("#cmText"); ta.value=json;
+  m.querySelector("#cmClose").onclick=()=>m.style.display="none";
+  m.querySelector("#cmCopy").onclick=async()=>{
+    try{ await navigator.clipboard.writeText(json); toast("Copied "+findings.length+" findings to clipboard"); }
+    catch(e){ ta.focus(); ta.select(); toast("Press ⌘/Ctrl+C to copy the selected JSON"); }
+  };
+  ta.focus(); ta.select();
+}
+function doImport(file){
+  const r=new FileReader();
+  r.onload=()=>{ try{
+    const d=JSON.parse(r.result); const arr=d.findings||d;
+    if(!Array.isArray(arr)) throw new Error("no findings array");
+    findings=arr.map((f,i)=>({ id:f.id||fp(f), ...f }));
+    // absorb any embedded triage
+    findings.forEach(f=>{ if(f.triage) triage[f.id]={...f.triage}; });
+    RAW_DATA.target=d.target||"imported"; RAW_DATA.generated_at=d.generated_at||"";
+    saveTriage(); computeBaseline(); boot(); toast("Imported "+findings.length+" findings");
+  }catch(e){ toast("Import failed: "+e.message);} };
+  r.readAsText(file);
+}
+function fp(f){ // stable id fallback matching the server basis
+  const s=`${f.cwe}|${f.file}|${f.line}|${(f.title||"").toLowerCase().trim()}`;
+  let h=0; for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))>>>0;} return "f"+h.toString(16);
+}
+
+/* ---------------- orchestration ---------------- */
+function render(){ renderKpis(); renderDonut(); renderList(); }
+function boot(){
+  $("#tgtName").textContent=RAW_DATA.target||"—";
+  $("#tgtMeta").textContent=(RAW_DATA.generated_at||"").slice(0,19).replace("T"," ")+" · "+findings.length+" findings";
+  buildFilterChecks();
+  renderBars("cweBars", topCounts(f=>f.cwe,8));
+  renderBars("attackBars", topCounts(f=>f.mitre_attack?f.mitre_attack.split(" ").slice(0,2).join(" "):null,7));
+  render();
+}
+
+/* events */
+$("#search").oninput=e=>{F.q=e.target.value; render();};
+$("#sortSel").onchange=e=>{F.sort=e.target.value; render();};
+$("#loadMore").onclick=()=>{F.limit+=60; renderList();};
+$("#resetBtn").onclick=()=>{ F.sev=new Set(SEV); F.status=new Set(STATUSES.map(s=>s[0])); F.source=new Set(sourceList());
+  F.val=new Set(findings.map(f=>f.validation).filter(Boolean)); F.q=""; F.limit=60; $("#search").value=""; buildFilterChecks(); render(); };
+$("#scrim").onclick=closeDrawer;
+document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeDrawer(); });
+$("#importBtn").onclick=()=>$("#importFile").click();
+$("#importFile").onchange=e=>{ if(e.target.files[0]) doImport(e.target.files[0]); };
+$("#exportBtn").onclick=doExport;
+
+/* ensure every finding has an id (server JSON may omit it) */
+findings.forEach(f=>{ if(!f.id) f.id=fp(f); });
+
+/* --- upload hook: populate the console from a /api/scan result --- */
+window.loadScan = function(d){
+  const arr = (d && d.findings) || [];
+  findings = arr.map((f)=>({ id:f.id||fp(f), ...f }));
+  findings.forEach(f=>{ if(f.triage) triage[f.id]={...f.triage}; });
+  RAW_DATA.target = (d && d.target) || "scan";
+  RAW_DATA.generated_at = (d && d.generated_at) || new Date().toISOString();
+  saveTriage(); computeBaseline(); boot();
+};
+computeBaseline();
+boot();
+</script>
+
+<style>
+  #scanOverlay{position:fixed;inset:0;z-index:100;background:radial-gradient(1200px 600px at 50% -10%,#141b2e,#0a0d13 60%);
+    display:grid;place-items:center;padding:24px}
+  #scanOverlay.hidden{display:none}
+  .uploadCard{width:min(620px,94vw);background:linear-gradient(180deg,#111624,#0d1119);border:1px solid #1d2636;
+    border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:34px 34px 26px;text-align:center}
+  .ulogo{width:46px;height:46px;border-radius:12px;margin:0 auto 14px;background:radial-gradient(circle at 30% 30%,#ff5b6a,#b91c2b);
+    position:relative;box-shadow:0 0 0 1px rgba(255,91,106,.35),0 10px 30px rgba(185,28,43,.45)}
+  .ulogo::after{content:"";position:absolute;inset:16px;border-radius:50%;background:#0a0d13;box-shadow:inset 0 0 0 3px #ff8a94}
+  .uploadCard h1{margin:0 0 6px;font-size:22px;letter-spacing:-.3px}
+  .uploadCard h1 b{color:#ff6b6b}
+  .uploadCard p.sub{margin:0 0 22px;color:#8a94a9;font-size:13.5px;line-height:1.5}
+  .drop{border:1.5px dashed #2a3650;border-radius:14px;padding:34px 20px;cursor:pointer;transition:.15s;background:#0c111c}
+  .drop:hover,.drop.drag{border-color:#5b8cff;background:#101a30}
+  .drop .big{font-size:15px;font-weight:600;margin-bottom:4px}
+  .drop .small{font-size:12px;color:#5c6577}
+  .drop .fname{color:#9fc0ff;font-family:ui-monospace,monospace;font-size:12.5px;margin-top:10px}
+  .scanBtn{margin-top:18px;width:100%;padding:13px;border:0;border-radius:11px;background:#3a6df0;color:#fff;font-size:15px;
+    font-weight:600;cursor:pointer;transition:.15s}
+  .scanBtn:hover{background:#5b8cff}
+  .scanBtn:disabled{opacity:.5;cursor:default}
+  .ustatus{margin-top:14px;min-height:20px;font-size:13px;color:#8a94a9}
+  .ustatus.err{color:#ff8a8a}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid #2a3650;border-top-color:#5b8cff;border-radius:50%;
+    animation:spin .8s linear infinite;vertical-align:-2px;margin-right:7px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .ufoot{margin-top:18px;font-size:11px;color:#4c5569;line-height:1.5}
+</style>
+<div id="scanOverlay">
+  <div class="uploadCard">
+    <div class="ulogo"></div>
+    <h1>Red<b>Intelligence</b></h1>
+    <p class="sub">Upload a code file or a zipped codebase. It's scanned for security
+       weaknesses — injection, XSS, insecure deserialization, hardcoded secrets,
+       vulnerable dependencies — with dataflow taint analysis, and the results open
+       in the console.</p>
+    <div class="drop" id="drop">
+      <div class="big">Drop a file here, or click to choose</div>
+      <div class="small">single file or .zip · up to 25 MB</div>
+      <div class="fname" id="fname"></div>
+    </div>
+    <input type="file" id="fileInput" hidden>
+    <button class="scanBtn" id="scanBtn" disabled>Select a file to scan</button>
+    <div class="ustatus" id="ustatus"></div>
+    <div class="ufoot">Your code is parsed, never executed. Analysis runs in an isolated,
+       resource-limited sandbox and is discarded after the scan.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var fileInput=document.getElementById("fileInput"),
+      drop=document.getElementById("drop"),
+      fname=document.getElementById("fname"),
+      btn=document.getElementById("scanBtn"),
+      status=document.getElementById("ustatus"),
+      overlay=document.getElementById("scanOverlay"),
+      chosen=null;
+
+  function pick(f){ chosen=f; fname.textContent=f?f.name+" ("+Math.ceil(f.size/1024)+" KB)":"";
+    btn.disabled=!f; btn.textContent=f?"Scan "+f.name:"Select a file to scan"; status.textContent=""; status.className="ustatus"; }
+
+  drop.onclick=function(){ fileInput.click(); };
+  fileInput.onchange=function(e){ if(e.target.files[0]) pick(e.target.files[0]); };
+  ["dragenter","dragover"].forEach(function(ev){ drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add("drag");}); });
+  ["dragleave","drop"].forEach(function(ev){ drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove("drag");}); });
+  drop.addEventListener("drop",function(e){ if(e.dataTransfer.files[0]) pick(e.dataTransfer.files[0]); });
+
+  btn.onclick=async function(){
+    if(!chosen) return;
+    btn.disabled=true; btn.textContent="Scanning…";
+    status.className="ustatus"; status.innerHTML='<span class="spinner"></span>Running RedCell — this can take a minute for a large codebase.';
+    try{
+      var fd=new FormData(); fd.append("file",chosen);
+      var r=await fetch("/api/scan",{method:"POST",body:fd});
+      if(!r.ok){ var msg="Scan failed"; try{var j=await r.json(); msg=j.detail||msg;}catch(_){} throw new Error(msg); }
+      var data=await r.json();
+      window.loadScan(data);
+      overlay.classList.add("hidden");
+    }catch(err){
+      var net=(err && (err.name==="TypeError" || /fetch|load failed/i.test(err.message||"")));
+      status.className="ustatus err";
+      status.textContent = net
+        ? "No analysis backend reached. This is the live interface preview — use the “Import run” button to load a findings.json, or deploy the backend to enable live scanning."
+        : (err.message||"Scan failed.");
+      btn.disabled=false; btn.textContent="Scan "+(chosen?chosen.name:"");
+    }
+  };
+
+  // "New scan" button in the console header
+  window.addEventListener("load",function(){
+    var hdr=document.querySelector("header");
+    if(hdr && !document.getElementById("newScanBtn")){
+      var b=document.createElement("button");
+      b.id="newScanBtn"; b.className="btn"; b.textContent="New scan";
+      b.style.marginRight="8px";
+      b.onclick=function(){ pick(null); overlay.classList.remove("hidden"); };
+      var spacer=hdr.querySelector(".spacer");
+      if(spacer && spacer.nextSibling) hdr.insertBefore(b, spacer.nextSibling); else hdr.appendChild(b);
+    }
+  });
+})();
+</script>
+</body>
+</html>
